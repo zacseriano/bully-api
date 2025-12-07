@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  node1:
+    build: .
+    ports:
+      - "8081:8080"
+    environment:
+      - NODE_ID=1
+      - ALL_NODES=1:node1,2:node2,3:node3
+    networks:
+      - bully-net
+
+  node2:
+    build: .
+    ports:
+      - "8082:8080"
+    environment:
+      - NODE_ID=2
+      - ALL_NODES=1:node1,2:node2,3:node3
+    networks:
+      - bully-net
+
+  node3:
+    build: .
+    ports:
+      - "8083:8080"
+    environment:
+      - NODE_ID=3
+      - ALL_NODES=1:node1,2:node2,3:node3
+    networks:
+      - bully-net
+
+networks:
+  bully-net:
+    driver: bridge

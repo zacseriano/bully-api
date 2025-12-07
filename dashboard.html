@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Bully Algorithm Dashboard</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .crown-icon { font-size: 3rem; position: absolute; top: -20px; right: -20px; transform: rotate(15deg); }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center font-sans">
+
+    <div id="app" class="w-full max-w-5xl p-5">
+        <h1 class="text-4xl font-bold mb-10 text-center text-blue-400">Monitoramento - Algoritmo Bully</h1>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div v-for="node in nodes" :key="node.port" 
+                 class="relative border-4 rounded-xl p-6 transition-all duration-300 shadow-lg"
+                 :class="getCardColor(node)">
+                
+                <div v-if="node.isLeader && node.isAlive" class="crown-icon">👑</div>
+
+                <h2 class="text-2xl font-bold mb-2">Nó {{ node.id }}</h2>
+                <p class="text-sm opacity-75 mb-4">Porta: {{ node.port }}</p>
+
+                <div class="space-y-2 mb-6 bg-black/20 p-3 rounded">
+                    <p>Status: 
+                        <span class="font-bold" :class="node.isAlive ? 'text-green-300' : 'text-red-400'">
+                            {{ node.statusText }}
+                        </span>
+                    </p>
+                    <p v-if="node.isAlive">Líder Atual: <strong class="text-yellow-400">{{ node.currentLeader }}</strong></p>
+                </div>
+
+                <div class="flex gap-2">
+                    <button @click="toggleNode(node)" 
+                            class="flex-1 py-2 px-4 rounded font-bold transition-colors"
+                            :class="node.isAlive ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'">
+                        {{ node.isAlive ? 'DERRUBAR 💀' : 'REVIVER ❤️' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-12 text-center text-gray-500">
+            <p>Atualizando automaticamente a cada 1 segundo...</p>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    // Configuração estática dos nós
+                    nodes: [
+                        { id: 1, port: 8081, isAlive: false, isLeader: false, currentLeader: '?', statusText: 'Desconectado' },
+                        { id: 2, port: 8082, isAlive: false, isLeader: false, currentLeader: '?', statusText: 'Desconectado' },
+                        { id: 3, port: 8083, isAlive: false, isLeader: false, currentLeader: '?', statusText: 'Desconectado' }
+                    ]
+                }
+            },
+            methods: {
+                // Função que roda a cada 1s para buscar dados
+                async fetchStatus() {
+                    this.nodes.forEach(async (node) => {
+                        try {
+                            const res = await fetch(`http://localhost:${node.port}/info`);
+                            
+                            if (res.ok) {
+                                const data = await res.json();
+                                
+                                // Mapeamento correto baseado no seu JSON:
+                                // {"nodeId":1,"leaderId":3,"message":"Node 1","leader":false,"alive":true}
+                                
+                                node.isAlive = data.alive;     // Lê "alive" do JSON
+                                node.isLeader = data.leader;   // Lê "leader" do JSON
+                                node.currentLeader = data.leaderId;
+                                
+                                node.statusText = node.isAlive ? 'ONLINE' : 'FALHA SIMULADA';
+                            } else {
+                                // Se o servidor responder com erro (ex: 503 na simulação de falha)
+                                // Nota: Se a sua lógica de "kill" retorna 503, cai aqui ou no catch
+                                // Mas se retorna 200 com "alive": false, cai no if acima.
+                                throw new Error("Erro na API");
+                            }
+                        } catch (error) {
+                            // Se o Docker estiver parado ou retornar 503
+                            node.isAlive = false;
+                            node.isLeader = false;
+                            node.currentLeader = '?';
+                            node.statusText = 'OFFLINE';
+                        }
+                    });
+                },
+                
+                // Botão de Derrubar/Reviver
+                async toggleNode(node) {
+                    const endpoint = node.isAlive ? 'kill' : 'revive';
+                    try {
+                        await fetch(`http://localhost:${node.port}/${endpoint}`, { method: 'POST' });
+                        // Atualiza imediatamente após clicar
+                        setTimeout(this.fetchStatus, 100); 
+                    } catch (e) {
+                        alert(`Erro ao comunicar com o Nó ${node.id}. Talvez o Docker esteja parado de verdade?`);
+                    }
+                },
+
+                getCardColor(node) {
+                    if (!node.isAlive) return 'border-red-600 bg-red-900/20 text-gray-400';
+                    if (node.isLeader) return 'border-yellow-500 bg-yellow-900/30 scale-105';
+                    return 'border-green-500 bg-gray-800';
+                }
+            },
+            mounted() {
+                // Inicia o loop de atualização
+                this.fetchStatus();
+                setInterval(this.fetchStatus, 1000);
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
